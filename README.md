@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # AI 对话 → 思源笔记
 
 一个 Chrome 扩展，将 **ChatGPT** 和 **DeepSeek** 网页对话一键保存为 Markdown 并导入 **思源笔记**。
@@ -78,3 +79,6 @@ ai-chat-to-siyuan/
 ## License
 
 MIT
+=======
+# ai-chat-to-siyuan
+>>>>>>> b5333cdc2b4db1a0dff0de940a9dd1af718b609c
