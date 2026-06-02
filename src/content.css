@@ -1,0 +1,14 @@
+/* 保存到思源按钮样式 - 精简，仅确保不被宿主页面覆盖 */
+#sy-save-btn * {
+  box-sizing: border-box;
+  line-height: 1.4;
+}
+
+#sy-save-primary:hover {
+  opacity: 0.9 !important;
+  transform: scale(1.05);
+}
+
+#sy-save-preview:hover {
+  opacity: 1 !important;
+}

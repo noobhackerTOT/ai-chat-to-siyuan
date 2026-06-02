@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AI 对话 → 思源 · 设置</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #e2e8f0;
+      --text-dim: #64748b;
+      --accent: #4f46e5;
+      --accent-hover: #6366f1;
+      --success: #22c55e;
+      --error: #ef4444;
+      --warning: #f59e0b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px; padding: 40px 24px;
+      max-width: 640px; margin: 0 auto;
+    }
+    h1 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    h1 span { font-size: 28px; }
+    .subtitle { color: var(--text-dim); font-size: 13px; margin-bottom: 28px; }
+
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 20px 24px; margin-bottom: 16px;
+    }
+    .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+
+    .field { margin-bottom: 16px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label {
+      display: block; font-size: 12px; font-weight: 500;
+      color: var(--text-dim); margin-bottom: 5px;
+    }
+    .field input, .field select {
+      width: 100%; padding: 8px 12px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-size: 14px;
+      outline: none; transition: border-color 0.2s;
+    }
+    .field input:focus, .field select:focus {
+      border-color: var(--accent);
+    }
+    .field input::placeholder { color: #475569; }
+    .field .hint { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+    .btn {
+      display: inline-block; padding: 10px 24px; border: none; border-radius: 10px;
+      font-size: 14px; font-weight: 500; cursor: pointer;
+      transition: all 0.2s; margin-right: 8px; margin-top: 4px;
+    }
+    .btn-primary {
+      background: var(--accent); color: white;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary {
+      background: var(--card); color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: #293548; }
+
+    .msg {
+      padding: 10px 14px; border-radius: 8px; margin-bottom: 16px;
+      font-size: 13px; display: none;
+    }
+    .msg.success { display: block; background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.2); }
+    .msg.error { display: block; background: rgba(239,68,68,0.15); color: var(--error); border: 1px solid rgba(239,68,68,0.2); }
+    .msg.info { display: block; background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.2); }
+
+    .test-result {
+      margin-top: 12px; padding: 10px 14px; border-radius: 8px;
+      font-size: 13px; display: none;
+    }
+    .test-result.ok { display: block; background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.2); }
+    .test-result.fail { display: block; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); }
+
+    .notebook-list {
+      margin-top: 8px;
+    }
+    .notebook-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;
+      margin-bottom: 6px; cursor: pointer; transition: background 0.15s;
+    }
+    .notebook-item:hover { background: rgba(79,70,229,0.08); }
+    .notebook-item.selected { border-color: var(--accent); background: rgba(79,70,229,0.12); }
+    .notebook-item .name { font-size: 13px; }
+    .notebook-item .id { font-size: 11px; color: var(--text-dim); }
+
+    .steps {
+      background: rgba(79,70,229,0.08); border-left: 3px solid var(--accent);
+      padding: 14px 16px; border-radius: 0 8px 8px 0; margin-bottom: 20px;
+      font-size: 13px; line-height: 1.8;
+    }
+    .steps code {
+      background: rgba(0,0,0,0.3); padding: 1px 6px; border-radius: 4px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1><span>⚙</span> AI 对话 → 思源 设置</h1>
+  <p class="subtitle">配置思源笔记 API 连接参数</p>
+
+  <div class="steps">
+    <strong>📖 如何获取配置：</strong><br>
+    1. 打开思源笔记 → 设置 → 关于 → 查看 <strong>API Token</strong><br>
+    2. 在思源中创建一个笔记本（或使用已有笔记本）<br>
+    3. 运行 <strong>列出笔记本</strong> 获取笔记本 ID<br>
+    4. 思源 API 默认地址为 <code>http://127.0.0.1:6806</code>
+  </div>
+
+  <div class="msg" id="msg"></div>
+
+  <div class="card">
+    <h2>🔌 思源 API 连接</h2>
+
+    <div class="field">
+      <label for="siyuanUrl">API 地址</label>
+      <input type="url" id="siyuanUrl" placeholder="http://127.0.0.1:6806">
+      <div class="hint">默认: http://127.0.0.1:6806（非标准端口请修改）</div>
+    </div>
+
+    <div class="field">
+      <label for="siyuanToken">API Token</label>
+      <input type="text" id="siyuanToken" placeholder="思源设置 → 关于 → API Token">
+      <div class="hint">从思源笔记设置中复制</div>
+    </div>
+
+    <div class="field">
+      <label for="targetPath">思源中的保存路径</label>
+      <input type="text" id="targetPath" placeholder="/AI对话">
+      <div class="hint">文档将创建在此路径下，例如 /AI对话/对话标题</div>
+    </div>
+
+    <button class="btn btn-secondary" id="testBtn">🔗 测试连接</button>
+    <button class="btn btn-primary" id="saveBtn">💾 保存设置</button>
+
+    <div class="test-result" id="testResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>📚 选择目标笔记本</h2>
+    <p style="color:var(--text-dim);font-size:13px;margin-bottom:12px;">
+      点击下方的笔记本选择目标，留空则使用思源默认笔记本。
+    </p>
+    <button class="btn btn-secondary" id="refreshNotebooksBtn">🔄 刷新笔记本列表</button>
+    <div class="notebook-list" id="notebookList">
+      <p style="color:var(--text-dim);font-size:13px;">点击「刷新笔记本列表」获取</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📋 使用说明</h2>
+    <div style="font-size:13px;line-height:1.8;color:var(--text-dim);">
+      <p><strong>1.</strong> 打开 ChatGPT (chatgpt.com) 或 DeepSeek (chat.deepseek.com) 的对话页面</p>
+      <p><strong>2.</strong> 页面右下角会出现 <span style="color:var(--accent)">📥 保存到思源</span> 按钮</p>
+      <p><strong>3.</strong> 点击按钮，对话将自动转换为 Markdown 并保存到思源</p>
+      <p><strong>4.</strong> 也可点击扩展图标，从弹出面板操作</p>
+      <p><strong>5.</strong> 生成的文档路径: <code style="color:var(--text)">{保存路径}/{对话标题}</code></p>
+      <p style="margin-top:8px;">
+        ⚠️ 确保思源笔记已开启，且 <strong>设置 → 关于 → 网络伺服 API</strong> 已启用（默认开启）。
+      </p>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
