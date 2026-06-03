@@ -78,15 +78,16 @@
             result += '`' + inner + '`';
             break;
           case 'pre': {
-            // 查找内部 code 的语言类
+            // 直接读取 code 元素的 textContent，不依赖递归 inner
+            // 因为 code 的递归结果会在 case 'code' 的 closest('pre') 检查中被丢弃
             const codeEl = child.querySelector('code');
             const cls = codeEl && codeEl.className || '';
             const langMatch = cls.match(/(?:language-|lang-)(\w+)/);
             const lang = langMatch ? langMatch[1] : '';
-            const codeText = inner.trim();
-            if (!codeText) break;
-            // 确保代码块前后有空行（思源块解析器要求块之间有明确分隔）
-            result += '\n\n```' + lang + '\n' + codeText + '\n```\n\n';
+            const codeText = codeEl ? codeEl.textContent.trim() : inner;
+            if (codeText) {
+              result += '\n```' + lang + '\n' + codeText + '\n```\n';
+            }
             break;
           }
           case 'p':
@@ -171,42 +172,36 @@
   function getCleanText(el, platform) {
     const clone = el.cloneNode(true);
 
-    // 移除 UI 残渣
+    // 移除纯 UI 元素（使用精确选择器，不用 class* 模糊匹配避免误删内容）
     clone.querySelectorAll(
-      'button, svg, [role="button"], [class*="timestamp"], [class*="action"], ' +
-      '[class*="copy"], [class*="edit"], [class*="regenerate"], ' +
-      'img, audio, video, [class*="avatar"]'
+      'button:not([data-message-author-role]), ' +   // UI 按钮（排除可能的角色标记按钮）
+      '[role="button"], [aria-label*="opy" i], ' +     // copy 按钮（aria-label="Copy"）
+      '[aria-label*="dit" i], ' +                       // edit 按钮
+      '[aria-label*="egenerate" i], ' +                 // regenerate 按钮
+      '[aria-label*="ike" i], ' +                       // like 按钮
+      '[aria-label*="islike" i], ' +                    // dislike 按钮
+      'audio, video'                                     // 媒体元素
     ).forEach(n => n.remove());
 
-    // 移除 ChatGPT 代码块的包裹层（header/toolbar div）——它们是 pre 的兄弟元素，
-    // 里面包含语言标签、复制按钮等 UI 文本，会泄漏到 Markdown 中产生孤立文本。
-    clone.querySelectorAll('pre').forEach(pre => {
-      // 删除 pre 前面所有的兄弟 div（通常是代码块 header/toolbar）
-      let prev = pre.previousElementSibling;
-      while (prev) {
-        const toRemove = prev;
-        prev = prev.previousElementSibling;
-        toRemove.remove();
-      }
-      // 删除 pre 内部非 code 的子元素（某些版本 ChatGPT 的代码块 header 在 pre 内部）
-      pre.querySelectorAll(':scope > :not(code)').forEach(el => el.remove());
-    });
-
     // 在 clone 中移除 thinking 区块
+    // 策略：只删除明确的 thinking UI 标签（toggle/header），不动任何内容 DOM
+    // 正文与思考内容的分离全部交给文本级 stripThinkingText 处理
+    //
+    // 1. 删除已知 thinking 容器（ChatGPT 的 reasoning details 元素）
+    clone.querySelectorAll([
+      'details[open]',                                     // ChatGPT 展开的思考块
+      '[data-testid="reasoning"]',                          // ChatGPT reasoning 标记
+      '[class*="think"][class*="container"]'                // 组合类名，不会是正文
+    ].join(',')).forEach(el => el.remove());
+
+    // 2. 找到文本匹配 thinking 的标签元素，只删标签自身，不删兄弟/内容
     const candidates = clone.querySelectorAll('div, section, span, button');
     for (const c of candidates) {
       const t = c.textContent.trim();
-      if (t.length > 0 && t.length < 80 &&
-          /^(思考过程|思考|推理过程|推理|Thought|Thinking|Reasoning)/i.test(t)) {
-        const parent = c.parentElement;
-        if (parent) {
-          let sib = c.nextElementSibling;
-          while (sib) {
-            const next = sib.nextElementSibling;
-            sib.remove();
-            sib = next;
-          }
-        }
+      if (t.length > 0 && t.length < 50 &&
+          /^(思考过程|思考|推理过程|推理|Thought|Thinking|Reasoning)/i.test(t) &&
+          // 确保不是正文内容（不含任何正文标记子元素）
+          !c.querySelector('p, pre, ul, ol, table, h1, h2, h3, h4, h5, h6, [class*="markdown"], [class*="prose"]')) {
         c.remove();
       }
     }
@@ -227,16 +222,30 @@
   function stripThinkingText(text) {
     if (!text) return text;
     let r = text;
-    // 移除思考过程
-    r = r.replace(/^思考过程[：:][\s\S]*?(?=\n\n|$)/, '').trim();
-    r = r.replace(/^Thought[：:][\s\S]*?(?=\n\n|$)/, '').trim();
-    r = r.replace(/^(思考过程|推理过程|推理|Thought|Thinking|Reasoning)\s*\n[\s\S]*?(?=\n\n|$)/, '').trim();
+
+    // 重复移除开头的思考块（每个块：关键词 + 可选冒号 + 内容 + 空行）
+    // 最多 3 轮，覆盖多个思考段落的情况
+    for (let i = 0; i < 3; i++) {
+      const prev = r;
+      // 模式 1：关键词 + 中文/英文冒号 + 任意内容 + 空行
+      r = r.replace(/^(?:思考过程|推理过程|推理|Thought|Thinking|Reasoning)[：:]\s*[\s\S]*?\n\n/i, '');
+      // 模式 2：关键词 + 换行 + 任意内容 + 空行
+      r = r.replace(/^(?:思考过程|推理过程|推理|Thought|Thinking|Reasoning)\s*\n[\s\S]*?\n\n/i, '');
+      if (r === prev) break;
+    }
+
+    // 兜底：如果文本以思考关键词开头且全文没有空行（无正式回复），整段删掉
+    if (/^(?:思考过程|推理过程|推理|Thought|Thinking|Reasoning)/i.test(r) && !/\n\n/.test(r)) {
+      r = r.replace(/^[\s\S]+/, '');
+    }
+
+    r = r.trim();
+
     // 移除中文标点前的多余「-」（如「模式）-。」→「模式）。」），不影响链接
     r = r.replace(/-([。，、；：？！．\.、])/g, '$1');
-    // 移除行尾多余的「-」（如「测试-」→「测试」）
-    r = r.replace(/-\s*$/gm, '');
     // 移除孤立的脚注行（如单独的「-2」「-19」），保留行内链接 [-2](url) 不受影响
     r = r.replace(/^-(\d+)\s*$/gm, '');
+    // 注意：不再删除行尾的「-」，因为会误删 --- 水平线和 ASCII 图
     return r;
   }
 
@@ -447,23 +456,24 @@
 
     const lines = [];
 
-    // ---- 页眉（避免思源块解析异常，用简洁结构） ----
-    lines.push(`# ${title}`);
+    // ---- 页眉 ----
+    lines.push(`# 💬 ${title}`);
     lines.push('');
     lines.push(`> **来源**：${platformName}　　**导出**：${exportTime}　　**消息**：${msgCount} 条　　**≈** ${estTokens.toLocaleString()} tokens`);
     lines.push('');
+    lines.push('---');
+    lines.push('');
 
-    // ---- 正文（每条消息之间用两个空行确保块级分离） ----
+    // ---- 正文（纯内容，不加任何标签） ----
     messages.forEach((msg) => {
-      // 确保每条消息文本开头和结尾没有多余空行
-      let text = msg.text.trim();
-      if (!text) return;
-      lines.push(text);
-      lines.push('');
+      lines.push(msg.text);
       lines.push('');
     });
 
     // ---- 页脚 ----
+    lines.push('');
+    lines.push('---');
+    lines.push('');
     lines.push(`> *由 Boreas · AI Chat → SiYuan 插件自动导出 · ${exportTime}*`);
 
     return lines.join('\n');
