@@ -77,14 +77,18 @@
             if (child.closest('pre')) break; // pre > code 已在 pre 中处理
             result += '`' + inner + '`';
             break;
-          case 'pre':
+          case 'pre': {
             // 查找内部 code 的语言类
             const codeEl = child.querySelector('code');
             const cls = codeEl && codeEl.className || '';
             const langMatch = cls.match(/(?:language-|lang-)(\w+)/);
             const lang = langMatch ? langMatch[1] : '';
-            result += '\n```' + lang + '\n' + inner.trim() + '\n```\n';
+            const codeText = inner.trim();
+            if (!codeText) break;
+            // 确保代码块前后有空行（思源块解析器要求块之间有明确分隔）
+            result += '\n\n```' + lang + '\n' + codeText + '\n```\n\n';
             break;
+          }
           case 'p':
             result += inner + '\n\n';
             break;
@@ -173,6 +177,20 @@
       '[class*="copy"], [class*="edit"], [class*="regenerate"], ' +
       'img, audio, video, [class*="avatar"]'
     ).forEach(n => n.remove());
+
+    // 移除 ChatGPT 代码块的包裹层（header/toolbar div）——它们是 pre 的兄弟元素，
+    // 里面包含语言标签、复制按钮等 UI 文本，会泄漏到 Markdown 中产生孤立文本。
+    clone.querySelectorAll('pre').forEach(pre => {
+      // 删除 pre 前面所有的兄弟 div（通常是代码块 header/toolbar）
+      let prev = pre.previousElementSibling;
+      while (prev) {
+        const toRemove = prev;
+        prev = prev.previousElementSibling;
+        toRemove.remove();
+      }
+      // 删除 pre 内部非 code 的子元素（某些版本 ChatGPT 的代码块 header 在 pre 内部）
+      pre.querySelectorAll(':scope > :not(code)').forEach(el => el.remove());
+    });
 
     // 在 clone 中移除 thinking 区块
     const candidates = clone.querySelectorAll('div, section, span, button');
@@ -429,24 +447,23 @@
 
     const lines = [];
 
-    // ---- 页眉 ----
-    lines.push(`# 💬 ${title}`);
+    // ---- 页眉（避免思源块解析异常，用简洁结构） ----
+    lines.push(`# ${title}`);
     lines.push('');
     lines.push(`> **来源**：${platformName}　　**导出**：${exportTime}　　**消息**：${msgCount} 条　　**≈** ${estTokens.toLocaleString()} tokens`);
     lines.push('');
-    lines.push('---');
-    lines.push('');
 
-    // ---- 正文（纯内容，不加任何标签） ----
+    // ---- 正文（每条消息之间用两个空行确保块级分离） ----
     messages.forEach((msg) => {
-      lines.push(msg.text);
+      // 确保每条消息文本开头和结尾没有多余空行
+      let text = msg.text.trim();
+      if (!text) return;
+      lines.push(text);
+      lines.push('');
       lines.push('');
     });
 
     // ---- 页脚 ----
-    lines.push('');
-    lines.push('---');
-    lines.push('');
     lines.push(`> *由 Boreas · AI Chat → SiYuan 插件自动导出 · ${exportTime}*`);
 
     return lines.join('\n');
